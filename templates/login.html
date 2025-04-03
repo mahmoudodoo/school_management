@@ -1,15 +1,39 @@
-<!--templates/login.html -->
+<!-- templates/login.html -->
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Login{% endblock %}
+{% block title %}Login | EduTrack{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/auth.css' %}">
+{% endblock %}
 
 {% block content %}
-    <link rel="stylesheet" href="{% static 'css/login.css' %}">
-    <h1>Login</h1>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Login</button>
-    </form>
-    <p>Don't have an account? <a href="{% url 'register' %}">Register here</a>.</p>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Welcome Back</h1>
+                <p>Sign in to continue to EduTrack</p>
+            </div>
+            <form method="post" class="auth-form">
+                {% csrf_token %}
+                <div class="form-group">
+                    {{ form.username.label_tag }}
+                    {{ form.username }}
+                    <div class="error-message" id="username-error"></div>
+                </div>
+                <div class="form-group">
+                    {{ form.password.label_tag }}
+                    {{ form.password }}
+                    <div class="error-message" id="password-error"></div>
+                </div>
+                <button type="submit" class="auth-button">
+                    <span class="material-symbols-outlined">login</span>
+                    Sign In
+                </button>
+            </form>
+            <div class="auth-footer">
+                <p>Don't have an account? <a href="{% url 'register' %}">Sign up</a></p>
+            </div>
+        </div>
+    </div>
 {% endblock %}

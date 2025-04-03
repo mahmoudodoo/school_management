@@ -1,15 +1,62 @@
-<!--templates/register.html -->
+<!-- templates/register.html -->
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Register{% endblock %}
+{% block title %}Register | EduTrack{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/auth.css' %}">
+{% endblock %}
 
 {% block content %}
-    <link rel="stylesheet" href="{% static 'css/register.css' %}">
-    <h1>Register</h1>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Register</button>
-    </form>
-    <p>Already have an account? <a href="{% url 'login' %}">Login here</a>.</p>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Create Account</h1>
+                <p>Join EduTrack to manage your educational journey</p>
+            </div>
+            <form method="post" class="auth-form" id="register-form">
+                {% csrf_token %}
+                <div class="form-group">
+                    {{ form.username.label_tag }}
+                    {{ form.username }}
+                    <div class="error-message" id="username-error"></div>
+                </div>
+                <div class="form-group">
+                    {{ form.email.label_tag }}
+                    {{ form.email }}
+                    <div class="error-message" id="email-error"></div>
+                </div>
+                <div class="form-group">
+                    {{ form.phone_number.label_tag }}
+                    {{ form.phone_number }}
+                    <div class="error-message" id="phone-error"></div>
+                </div>
+                <div class="form-group">
+                    {{ form.user_type.label_tag }}
+                    {{ form.user_type }}
+                </div>
+                <div class="form-group">
+                    {{ form.password1.label_tag }}
+                    {{ form.password1 }}
+                    <div class="error-message" id="password1-error"></div>
+                </div>
+                <div class="form-group">
+                    {{ form.password2.label_tag }}
+                    {{ form.password2 }}
+                    <div class="error-message" id="password2-error"></div>
+                </div>
+                <button type="submit" class="auth-button">
+                    <span class="material-symbols-outlined">person_add</span>
+                    Register
+                </button>
+            </form>
+            <div class="auth-footer">
+                <p>Already have an account? <a href="{% url 'login' %}">Sign in</a></p>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'js/register-validation.js' %}"></script>
 {% endblock %}

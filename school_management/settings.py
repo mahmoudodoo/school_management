@@ -138,3 +138,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 SIMPLEUI_LOGO = '/static/imgs/logo.png'
 SIMPLEUI_HOME_INFO = False
 SIMPLEUI_ANALYSIS = False
+
+AUTH_USER_MODEL = 'core.User'  
