@@ -1,0 +1,551 @@
+<!-- templates/profile.html -->
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Profile | EduTrack{% endblock %}
+
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/profile.css' %}">
+{% endblock %}
+
+
+{% block content %}
+<div class="profile-container">
+   <!-- Profile Header with Blur Background -->
+   <div class="profile-header">
+       <div class="profile-bg-blur"></div>
+       <div class="profile-info">
+           <div class="avatar">
+               <span class="material-symbols-outlined">account_circle</span>
+           </div>
+           <div class="user-details">
+               <h1>{{ user.get_full_name|default:user.username }}</h1>
+               <p class="user-role">{{ user.get_user_type_display }}</p>
+               <p class="user-email">{{ user.email }}</p>
+           </div>
+       </div>
+   </div>
+
+
+   <!-- Main Content with Tabs -->
+   <div class="profile-content">
+       <!-- Tab Navigation -->
+       <div class="tabs">
+           <button class="tab-btn active" data-tab="personal">Personal Info</button>
+           {% if user.user_type == 'parent' %}
+           <button class="tab-btn" data-tab="children">My Children</button>
+           {% elif user.user_type == 'student' %}
+           <button class="tab-btn" data-tab="performance">My Performance</button>
+           {% endif %}
+           <button class="tab-btn" data-tab="notifications">Notifications
+               {% if unread_notifications_count > 0 %}
+               <span class="notification-badge">{{ unread_notifications_count }}</span>
+               {% endif %}
+           </button>
+           {% if user.is_superuser %}
+           <button class="tab-btn" data-tab="admin">Admin Panel</button>
+           {% endif %}
+       </div>
+
+
+       <!-- Tab Contents -->
+       <div class="tab-contents">
+           <!-- Personal Information Tab -->
+           <div class="tab-content active" id="personal-tab">
+               <form method="post" class="profile-form" id="personal-form">
+                   {% csrf_token %}
+                   <input type="hidden" name="form_type" value="personal">
+                   <div class="form-grid">
+                       <div class="form-group">
+                           <label for="first_name">First Name</label>
+                           <input type="text" id="first_name" name="first_name" value="{{ user.first_name }}" required>
+                       </div>
+                       <div class="form-group">
+                           <label for="last_name">Last Name</label>
+                           <input type="text" id="last_name" name="last_name" value="{{ user.last_name }}" required>
+                       </div>
+                       <div class="form-group">
+                           <label for="email">Email</label>
+                           <input type="email" id="email" name="email" value="{{ user.email }}" required>
+                       </div>
+                       <div class="form-group">
+                           <label for="phone">Phone Number</label>
+                           <input type="tel" id="phone" name="phone" value="{{ user.phone_number|default:'' }}">
+                       </div>
+                       <!-- In the personal info form -->
+                       {% if user.user_type == 'parent' and user.parent_profile %}
+                       <div class="form-group">
+                           <label for="address">Address</label>
+                           <input type="text" id="address" name="address" value="{{ user.parent_profile.address|default:'' }}">
+                       </div>
+                       {% elif user.user_type == 'student' and user.student_profile %}
+                       <div class="form-group">
+                           <label for="dob">Date of Birth</label>
+                           <input type="date" id="dob" name="dob" value="{{ user.student_profile.date_of_birth|date:'Y-m-d' }}">
+                       </div>
+                       {% endif %}
+                   </div>
+                   <button type="submit" class="btn-save">Save Changes</button>
+               </form>
+
+
+               <!-- Change Password Form -->
+               <div class="password-section">
+                   <h3>Change Password</h3>
+                   <form method="post" class="profile-form" id="password-form">
+                       {% csrf_token %}
+                       <input type="hidden" name="form_type" value="password">
+                       <div class="form-group">
+                           <label for="old_password">Current Password</label>
+                           <input type="password" id="old_password" name="old_password" required>
+                       </div>
+                       <div class="form-group">
+                           <label for="new_password1">New Password</label>
+                           <input type="password" id="new_password1" name="new_password1" required>
+                       </div>
+                       <div class="form-group">
+                           <label for="new_password2">Confirm New Password</label>
+                           <input type="password" id="new_password2" name="new_password2" required>
+                       </div>
+                       <button type="submit" class="btn-save">Change Password</button>
+                   </form>
+               </div>
+           </div>
+
+
+           <!-- Children Tab (Parent only) -->
+           {% if user.user_type == 'parent' %}
+           <div class="tab-content" id="children-tab">
+               <!-- Debug output -->
+               <div class="debug-info" style="display: none;">
+                   <p>Number of children: {{ children|length }}</p>
+                   {% for student in children %}
+                   <p>Child: {{ student.first_name }} {{ student.last_name }}</p>
+                   <p>Absences: {{ student.absent_count }}</p>
+                   <p>Present: {{ student.present_count }}</p>
+                   <p>Performances: {{ student.academic_performances.count }}</p>
+                   {% endfor %}
+               </div>
+              
+               <div class="children-list">
+                   {% for student in children %}
+                   <div class="child-card">
+                       <div class="child-header">
+                           <span class="material-symbols-outlined child-icon">school</span>
+                           <h3>{{ student.first_name }} {{ student.last_name }}</h3>
+                       </div>
+                       <div class="child-details">
+                           <p><strong>Date of Birth:</strong> {{ student.date_of_birth|date:"M d, Y" }}</p>
+                           <p><strong>Absences:</strong> {{ student.absent_count }}/{{ student.absence_limit }}</p>
+                           <div class="progress-bar">
+                               <div class="progress-fill" style="width: {% widthratio student.absent_count student.absence_limit 100 %}%"></div>
+                           </div>
+                       </div>
+                       <div class="performance-summary">
+                           <h4>Performance Summary</h4>
+                           {% if student.academic_performances.all %}
+                           <div class="grades-grid">
+                               {% for performance in student.academic_performances.all %}
+                               <div class="grade-item {% if performance.is_failing %}failing{% elif performance.is_excelling %}excelling{% endif %}">
+                                   <span class="subject">{{ performance.subject.name }}</span>
+                                   <span class="grade">{{ performance.grade }}</span>
+                               </div>
+                               {% endfor %}
+                           </div>
+                           {% else %}
+                           <p class="no-performance">No performance data available</p>
+                           {% endif %}
+                       </div>
+                   </div>
+                   {% empty %}
+                   <div class="empty-state">
+                       <span class="material-symbols-outlined">child_care</span>
+                       <p>No children registered yet</p>
+                   </div>
+                   {% endfor %}
+               </div>
+           </div>
+           {% endif %}
+
+
+           <!-- Performance Tab (Student only) -->
+           {% if user.user_type == 'student' %}
+           <div class="tab-content" id="performance-tab">
+               <div class="attendance-section">
+                   <h3>Attendance Summary</h3>
+                   <div class="attendance-stats">
+                       <div class="stat-card present">
+                           <span class="material-symbols-outlined">check_circle</span>
+                           <div>
+                               <p class="stat-value">{{ present_count }}</p>
+                               <p class="stat-label">Present</p>
+                           </div>
+                       </div>
+                       <div class="stat-card absent">
+                           <span class="material-symbols-outlined">cancel</span>
+                           <div>
+                               <p class="stat-value">{{ absent_count }}</p>
+                               <p class="stat-label">Absent</p>
+                           </div>
+                       </div>
+                       <div class="stat-card limit">
+                           <span class="material-symbols-outlined">warning</span>
+                           <div>
+                               <p class="stat-value">{{ user.student_profile.absence_limit }}</p>
+                               <p class="stat-label">Absence Limit</p>
+                           </div>
+                       </div>
+                   </div>
+                   <div class="attendance-chart">
+                       <!-- Placeholder for attendance chart -->
+                       <canvas id="attendanceChart"></canvas>
+                   </div>
+               </div>
+
+
+               <div class="grades-section">
+                   <h3>Academic Performance</h3>
+                   <div class="grades-table">
+                       <table>
+                           <thead>
+                               <tr>
+                                   <th>Subject</th>
+                                   <th>Grade</th>
+                                   <th>Status</th>
+                               </tr>
+                           </thead>
+                           <tbody>
+                               {% for performance in user.student_profile.academic_performances.all %}
+                               <tr class="{% if performance.is_failing %}failing{% elif performance.is_excelling %}excelling{% endif %}">
+                                   <td>{{ performance.subject.name }}</td>
+                                   <td>{{ performance.grade }}</td>
+                                   <td>
+                                       {% if performance.is_failing %}
+                                       <span class="status-badge failing">Needs Improvement</span>
+                                       {% elif performance.is_excelling %}
+                                       <span class="status-badge excelling">Excellent</span>
+                                       {% else %}
+                                       <span class="status-badge">Satisfactory</span>
+                                       {% endif %}
+                                   </td>
+                               </tr>
+                               {% empty %}
+                               <tr>
+                                   <td colspan="3">No performance data available</td>
+                               </tr>
+                               {% endfor %}
+                           </tbody>
+                       </table>
+                   </div>
+               </div>
+           </div>
+           {% endif %}
+
+
+           <!-- Notifications Tab -->
+           <div class="tab-content" id="notifications-tab">
+               <div class="notifications-header">
+                   <h3>Notifications</h3>
+                   {% if user.notifications.all.count > 0 %}
+                   <button id="mark-all-read" class="btn-secondary">
+                       <span class="material-symbols-outlined">done_all</span> Mark All as Read
+                   </button>
+                   {% endif %}
+               </div>
+              
+               <div class="notifications-list">
+                   {% for notification in user.notifications.all %}
+                   <div class="notification-card {% if not notification.is_read %}unread{% endif %}" data-id="{{ notification.id }}">
+                       <div class="notification-content">
+                           <p>{{ notification.message }}</p>
+                           <small>{{ notification.timestamp|timesince }} ago</small>
+                       </div>
+                       <div class="notification-actions">
+                           {% if not notification.is_read %}
+                           <button class="mark-read-btn" data-id="{{ notification.id }}">
+                               <span class="material-symbols-outlined">check</span>
+                           </button>
+                           {% endif %}
+                           <button class="delete-notification-btn" data-id="{{ notification.id }}">
+                               <span class="material-symbols-outlined">delete</span>
+                           </button>
+                       </div>
+                   </div>
+                   {% empty %}
+                   <div class="empty-state">
+                       <span class="material-symbols-outlined">notifications_off</span>
+                       <p>No notifications yet</p>
+                   </div>
+                   {% endfor %}
+               </div>
+
+
+               <!-- Admin Notification Form -->
+               {% if user.is_superuser %}
+               <div class="admin-notification-form">
+                   <h4>Send Notification</h4>
+                   <form method="post" id="send-notification-form">
+                       {% csrf_token %}
+                       <input type="hidden" name="form_type" value="notification">
+                       <div class="form-group">
+                           <label for="recipient">Recipient</label>
+                           <select id="recipient" name="recipient" required>
+                               <option value="">Select a user</option>
+                               {% for u in all_users %}
+                               <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }} ({{ u.get_user_type_display }})</option>
+                               {% endfor %}
+                           </select>
+                       </div>
+                       <div class="form-group">
+                           <label for="notification-message">Message</label>
+                           <textarea id="notification-message" name="message" rows="3" required></textarea>
+                       </div>
+                       <button type="submit" class="btn-save">Send Notification</button>
+                   </form>
+               </div>
+               {% endif %}
+           </div>
+
+
+           <!-- Admin Panel Tab -->
+           {% if user.is_superuser %}
+           <div class="tab-content" id="admin-tab">
+               <div class="admin-tabs">
+                   <button class="admin-tab-btn active" data-admin-tab="students">Students</button>
+                   <button class="admin-tab-btn" data-admin-tab="parents">Parents</button>
+                   <button class="admin-tab-btn" data-admin-tab="performance">Performance</button>
+               </div>
+
+
+               <div class="admin-tab-contents">
+                   <!-- Students Management -->
+                   <div class="admin-tab-content active" id="admin-students-tab">
+                       <div class="admin-header">
+                           <h4>Manage Students</h4>
+                           <button id="add-student-btn" class="btn-primary">
+                               <span class="material-symbols-outlined">add</span> Add Student
+                           </button>
+                       </div>
+                       <div class="admin-table-container">
+                           <table class="admin-table" id="admin-students-table">
+                               <thead>
+                                   <tr>
+                                       <th>Name</th>
+                                       <th>Date of Birth</th>
+                                       <th>Parent</th>
+                                       <th>Absences</th>
+                                       <th>Actions</th>
+                                   </tr>
+                               </thead>
+                               <tbody>
+                                   {% for student in all_students %}
+                                   <tr>
+                                       <td>{{ student.first_name }} {{ student.last_name }}</td>
+                                       <td>{{ student.date_of_birth|date:"M d, Y" }}</td>
+                                       <td>
+                                           {% if student.parent %}
+                                           {{ student.parent.user.get_full_name|default:student.parent.user.username }}
+                                           {% else %}
+                                           None
+                                           {% endif %}
+                                       </td>
+                                       <td>{{ student.absent_count }}/{{ student.absence_limit }}</td>
+                                       <td class="actions">
+                                           <button class="edit-btn" data-id="{{ student.id }}">
+                                               <span class="material-symbols-outlined">edit</span>
+                                           </button>
+                                           <button class="delete-btn" data-id="{{ student.id }}">
+                                               <span class="material-symbols-outlined">delete</span>
+                                           </button>
+                                       </td>
+                                   </tr>
+                                   {% endfor %}
+                               </tbody>
+                           </table>
+                       </div>
+                   </div>
+
+
+                   <!-- Parents Management -->
+                   <div class="admin-tab-content" id="admin-parents-tab">
+                       <div class="admin-header">
+                           <h4>Manage Parents</h4>
+                           <button id="add-parent-btn" class="btn-primary">
+                               <span class="material-symbols-outlined">add</span> Add Parent
+                           </button>
+                       </div>
+                       <div class="admin-table-container">
+                           <table class="admin-table" id="admin-parents-table">
+                               <thead>
+                                   <tr>
+                                       <th>Name</th>
+                                       <th>Email</th>
+                                       <th>Phone</th>
+                                       <th>Children</th>
+                                       <th>Actions</th>
+                                   </tr>
+                               </thead>
+                               <tbody>
+                                   {% for parent in all_parents %}
+                                   <tr>
+                                       <td>{{ parent.user.get_full_name|default:parent.user.username }}</td>
+                                       <td>{{ parent.user.email }}</td>
+                                       <td>{{ parent.user.phone_number|default:"-" }}</td>
+                                       <td>{{ parent.students.count }}</td>
+                                       <td class="actions">
+                                           <button class="edit-btn" data-id="{{ parent.id }}">
+                                               <span class="material-symbols-outlined">edit</span>
+                                           </button>
+                                           <button class="delete-btn" data-id="{{ parent.id }}">
+                                               <span class="material-symbols-outlined">delete</span>
+                                           </button>
+                                       </td>
+                                   </tr>
+                                   {% endfor %}
+                               </tbody>
+                           </table>
+                       </div>
+                   </div>
+
+
+                   <!-- Performance Management -->
+                   <div class="admin-tab-content" id="admin-performance-tab">
+                       <div class="admin-header">
+                           <h4>Manage Academic Performance</h4>
+                           <button id="add-performance-btn" class="btn-primary">
+                               <span class="material-symbols-outlined">add</span> Add Performance
+                           </button>
+                       </div>
+                       <div class="admin-table-container">
+                           <table class="admin-table" id="admin-performance-table">
+                               <thead>
+                                   <tr>
+                                       <th>Student</th>
+                                       <th>Subject</th>
+                                       <th>Grade</th>
+                                       <th>Status</th>
+                                       <th>Actions</th>
+                                   </tr>
+                               </thead>
+                               <tbody>
+                                   {% for performance in all_performances %}
+                                   <tr class="{% if performance.is_failing %}failing{% elif performance.is_excelling %}excelling{% endif %}">
+                                       <td>{{ performance.student.first_name }} {{ performance.student.last_name }}</td>
+                                       <td>{{ performance.subject.name }}</td>
+                                       <td>{{ performance.grade }}</td>
+                                       <td>
+                                           {% if performance.is_failing %}
+                                           <span class="status-badge failing">Failing</span>
+                                           {% elif performance.is_excelling %}
+                                           <span class="status-badge excelling">Excelling</span>
+                                           {% else %}
+                                           <span class="status-badge">Satisfactory</span>
+                                           {% endif %}
+                                       </td>
+                                       <td class="actions">
+                                           <button class="edit-btn" data-id="{{ performance.id }}">
+                                               <span class="material-symbols-outlined">edit</span>
+                                           </button>
+                                           <button class="delete-btn" data-id="{{ performance.id }}">
+                                               <span class="material-symbols-outlined">delete</span>
+                                           </button>
+                                       </td>
+                                   </tr>
+                                   {% endfor %}
+                               </tbody>
+                           </table>
+                       </div>
+                   </div>
+               </div>
+           </div>
+           {% endif %}
+       </div>
+   </div>
+</div>
+
+
+<!-- Modal for Admin Actions -->
+{% if user.is_superuser %}
+<div id="admin-modal" class="modal">
+   <div class="modal-content">
+       <span class="close-modal">&times;</span>
+       <h3 id="modal-title">Add New Student</h3>
+       <form id="admin-form" method="post">
+           {% csrf_token %}
+           <input type="hidden" name="form_type" value="admin">
+           <input type="hidden" id="item-id" name="item_id">
+           <input type="hidden" id="item-type" name="item_type">
+           <div id="form-fields">
+               <!-- Dynamically loaded based on item type -->
+           </div>
+           <button type="submit" class="btn-save">Save</button>
+       </form>
+   </div>
+</div>
+{% endif %}
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+   // Pass Django context variables to JavaScript
+   window.allParents = [
+       {% for parent in all_parents %}
+       {
+           id: {{ parent.id }},
+           user: {
+               id: {{ parent.user.id }},
+               get_full_name: "{{ parent.user.get_full_name|default:''|escapejs }}",
+               username: "{{ parent.user.username|escapejs }}"
+           }
+       },
+       {% endfor %}
+   ];
+  
+   window.allStudents = [
+       {% for student in all_students %}
+       {
+           id: {{ student.id }},
+           first_name: "{{ student.first_name|escapejs }}",
+           last_name: "{{ student.last_name|escapejs }}",
+           user_id: {{ student.user.id }}
+       },
+       {% endfor %}
+   ];
+  
+   window.allUsers = [
+       {% for user in all_users %}
+       {
+           id: {{ user.id }},
+           username: "{{ user.username|escapejs }}",
+           email: "{{ user.email|escapejs }}",
+           first_name: "{{ user.first_name|escapejs }}",
+           last_name: "{{ user.last_name|escapejs }}",
+           user_type: "{{ user.user_type|escapejs }}",
+           get_full_name: "{{ user.get_full_name|default:''|escapejs }}"
+       },
+       {% endfor %}
+   ];
+  
+   window.allSubjects = [
+       {% for subject in all_subjects %}
+       {
+           id: {{ subject.id }},
+           name: "{{ subject.name|escapejs }}"
+       },
+       {% endfor %}
+   ];
+
+
+   // Add attendance chart data to window object if available
+   {% if user.user_type == 'student' and attendance_chart_data %}
+   window.attendanceChartData = {
+       labels: {{ attendance_chart_data.labels|safe }},
+       present: {{ attendance_chart_data.present|safe }},
+       absent: {{ attendance_chart_data.absent|safe }}
+   };
+   {% endif %}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{% static 'js/profile.js' %}"></script>
+{% endblock %}
