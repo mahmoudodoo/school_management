@@ -45,6 +45,54 @@ document.addEventListener('DOMContentLoaded', function() {
    }
 
 
+   // Assignment Submission Modal Handling
+   const submissionModal = document.getElementById('assignment-submission-modal');
+   if (submissionModal) {
+       const closeModal = submissionModal.querySelector('.close-modal');
+      
+       // Open modal when assignment submit button is clicked
+       document.querySelectorAll('.open-submission-modal').forEach(btn => {
+           btn.addEventListener('click', function() {
+               const assignmentId = this.getAttribute('data-assignment-id');
+               const assignmentTitle = this.getAttribute('data-assignment-title');
+               openAssignmentSubmissionModal(assignmentId, assignmentTitle);
+           });
+       });
+
+
+       closeModal.addEventListener('click', () => {
+           submissionModal.classList.remove('active');
+       });
+
+
+       window.addEventListener('click', (e) => {
+           if (e.target === submissionModal) {
+               submissionModal.classList.remove('active');
+           }
+       });
+
+
+       // Handle assignment submission form
+       const assignmentForm = document.getElementById('assignment-submission-form');
+       if (assignmentForm) {
+           assignmentForm.addEventListener('submit', function(e) {
+               e.preventDefault();
+               handleAssignmentSubmission(this);
+           });
+       }
+   }
+
+
+   // Handle absence excuse form submission
+   const absenceExcuseForm = document.getElementById('absence-excuse-form');
+   if (absenceExcuseForm) {
+       absenceExcuseForm.addEventListener('submit', function(e) {
+           e.preventDefault();
+           handleAbsenceExcuseSubmission(this);
+       });
+   }
+
+
    // Mark Notification as Read
    const markReadBtns = document.querySelectorAll('.mark-read-btn');
    markReadBtns.forEach(btn => {
@@ -94,18 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
        editButtons.forEach(btn => {
            btn.addEventListener('click', function() {
                const itemId = this.getAttribute('data-id');
-               // Get the parent table's ID to determine the item type
-               const tableId = this.closest('table').id;
-               let itemType;
-              
-               if (tableId.includes('students')) {
-                   itemType = 'student';
-               } else if (tableId.includes('parents')) {
-                   itemType = 'parent';
-               } else if (tableId.includes('performance')) {
-                   itemType = 'performance';
-               }
-              
+               const itemType = this.closest('.admin-tab-content').id.replace('admin-', '').replace('-tab', '');
                openAdminModal('edit', itemType, itemId);
            });
        });
@@ -116,23 +153,14 @@ document.addEventListener('DOMContentLoaded', function() {
        deleteButtons.forEach(btn => {
            btn.addEventListener('click', function() {
                const itemId = this.getAttribute('data-id');
-               // Get the parent table's ID to determine the item type
-               const tableId = this.closest('table').id;
-               let itemType;
-              
-               if (tableId.includes('students')) {
-                   itemType = 'student';
-               } else if (tableId.includes('parents')) {
-                   itemType = 'parent';
-               } else if (tableId.includes('performance')) {
-                   itemType = 'performance';
-               }
-              
+               const itemType = this.closest('.admin-tab-content').id.replace('admin-', '').replace('-tab', '');
                if (confirm('Are you sure you want to delete this item?')) {
                    deleteItem(itemType, itemId);
                }
            });
        });
+
+
        closeModal.addEventListener('click', () => {
            modal.classList.remove('active');
        });
@@ -188,6 +216,72 @@ document.addEventListener('DOMContentLoaded', function() {
        renderAttendanceChart();
    }
 });
+
+
+// Assignment Submission Functions
+function openAssignmentSubmissionModal(assignmentId, assignmentTitle) {
+   const modal = document.getElementById('assignment-submission-modal');
+   const modalTitle = document.getElementById('submission-modal-title');
+   const assignmentIdInput = document.getElementById('assignment-id');
+  
+   modalTitle.textContent = `Submit Assignment: ${assignmentTitle}`;
+   assignmentIdInput.value = assignmentId;
+   modal.classList.add('active');
+}
+
+
+function handleAssignmentSubmission(form) {
+   const formData = new FormData(form);
+   const assignmentId = formData.get('assignment_id');
+  
+   fetch(`/assignments/${assignmentId}/submit/`, {
+       method: 'POST',
+       body: formData,
+       headers: {
+           'X-CSRFToken': getCookie('csrftoken')
+       }
+   })
+   .then(response => response.json())
+   .then(data => {
+       if (data.success) {
+           showAlert('Assignment submitted successfully!', 'success');
+           document.getElementById('assignment-submission-modal').classList.remove('active');
+           location.reload(); // Refresh to show the new submission
+       } else {
+           showAlert('Error submitting assignment: ' + JSON.stringify(data.error), 'error');
+       }
+   })
+   .catch(error => {
+       showAlert('Error submitting assignment: ' + error.message, 'error');
+   });
+}
+
+
+// Absence Excuse Functions
+function handleAbsenceExcuseSubmission(form) {
+   const formData = new FormData(form);
+  
+   fetch('/absence-excuses/submit/', {
+       method: 'POST',
+       body: formData,
+       headers: {
+           'X-CSRFToken': getCookie('csrftoken')
+       }
+   })
+   .then(response => response.json())
+   .then(data => {
+       if (data.success) {
+           showAlert('Absence excuse submitted successfully!', 'success');
+           form.reset();
+           location.reload(); // Refresh to show the new excuse
+       } else {
+           showAlert('Error submitting absence excuse: ' + JSON.stringify(data.error), 'error');
+       }
+   })
+   .catch(error => {
+       showAlert('Error submitting absence excuse: ' + error.message, 'error');
+   });
+}
 
 
 function renderAttendanceChart() {
@@ -440,14 +534,13 @@ function openAdminModal(action, itemType, itemId = null) {
   
    if (itemType === 'student') {
        const parents = window.allParents || [];
-       const users = window.allUsers ? window.allUsers.filter(u => u.user_type === 'student') : [];
-      
+       const users = window.allUsers || [];
        fieldsHtml = `
            <div class="form-group">
                <label for="user">Select Student User</label>
                <select id="user" name="user" required>
                    <option value="">Select a student user</option>
-                   ${users.map(u => `
+                   ${users.filter(u => u.user_type === 'student' && !u.student_profile).map(u => `
                        <option value="${u.id}">${u.username} (${u.get_full_name || 'No name'})</option>
                    `).join('')}
                </select>
@@ -476,45 +569,20 @@ function openAdminModal(action, itemType, itemId = null) {
                <input type="number" id="absence_limit" name="absence_limit" value="10" min="1" required>
            </div>`;
    } else if (itemType === 'parent') {
-       const users = window.allUsers ? window.allUsers.filter(u => u.user_type === 'parent') : [];
-      
+       const users = window.allUsers || [];
        fieldsHtml = `
            <div class="form-group">
                <label for="user">Select Parent User</label>
                <select id="user" name="user" required>
                    <option value="">Select a parent user</option>
-                   ${users.map(u => `
+                   ${users.filter(u => u.user_type === 'parent' && !u.parent_profile).map(u => `
                        <option value="${u.id}">${u.username} (${u.get_full_name || 'No name'})</option>
                    `).join('')}
                </select>
            </div>
            <div class="form-group">
-               <label for="username">Username</label>
-               <input type="text" id="username" name="username" required>
-           </div>
-           <div class="form-group">
-               <label for="email">Email</label>
-               <input type="email" id="email" name="email" required>
-           </div>
-           <div class="form-group">
-               <label for="first_name">First Name</label>
-               <input type="text" id="first_name" name="first_name">
-           </div>
-           <div class="form-group">
-               <label for="last_name">Last Name</label>
-               <input type="text" id="last_name" name="last_name">
-           </div>
-           <div class="form-group">
-               <label for="phone_number">Phone Number</label>
-               <input type="text" id="phone_number" name="phone_number">
-           </div>
-           <div class="form-group">
                <label for="address">Address</label>
                <input type="text" id="address" name="address">
-           </div>
-           <div class="form-group">
-               <label for="password">Password (Leave blank to keep current)</label>
-               <input type="password" id="password" name="password">
            </div>`;
    } else if (itemType === 'performance') {
        const students = window.allStudents || [];
@@ -556,42 +624,18 @@ function openAdminModal(action, itemType, itemId = null) {
        .then(data => {
            if (data.success) {
                const itemData = data.item;
-               // Populate all fields
                for (const field in itemData) {
                    const input = document.querySelector(`[name="${field}"]`);
                    if (input) {
                        input.value = itemData[field];
                    }
                }
-              
-               // Special handling for student user field
-               if (itemType === 'student' && itemData.user_id) {
-                   const userSelect = document.getElementById('user');
-                   if (userSelect) {
-                       userSelect.value = itemData.user_id;
-                   }
-               }
-              
-               // Special handling for parent user fields
-               if (itemType === 'parent' && itemData.user_id) {
-                   const userSelect = document.getElementById('user');
-                   if (userSelect) {
-                       userSelect.value = itemData.user_id;
-                   }
-               }
-           } else {
-               console.error('Error loading item data:', data.error);
            }
-       })
-       .catch(error => {
-           console.error('Error fetching item data:', error);
        });
    }
   
    modal.classList.add('active');
 }
-
-
 
 
 function saveAdminItem(form) {
@@ -719,14 +763,7 @@ function deleteItem(itemType, itemId) {
            'Content-Type': 'application/json'
        }
    })
-   .then(response => {
-       if (!response.ok) {
-           return response.json().then(err => {
-               throw new Error(err.error || 'Request failed');
-           });
-       }
-       return response.json();
-   })
+   .then(response => response.json())
    .then(data => {
        if (data.success) {
            showAlert(`${itemType.charAt(0).toUpperCase() + itemType.slice(1)} deleted successfully!`, 'success');
@@ -734,12 +771,10 @@ function deleteItem(itemType, itemId) {
        } else {
            showAlert(`Error deleting ${itemType}: ${data.error}`, 'error');
        }
-   })
-   .catch(error => {
-       console.error('Error:', error);
-       showAlert(`Error: ${error.message}`, 'error');
    });
 }
+
+
 // Helper Functions
 function getCookie(name) {
    let cookieValue = null;

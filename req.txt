@@ -1,0 +1,7 @@
+asgiref==3.8.1
+Django==5.1.6
+django-extensions==3.2.3
+django-simpleui==2025.1.13
+pygraphviz==1.14
+sqlparse==0.5.3
+Faker

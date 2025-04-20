@@ -140,3 +140,5 @@ SIMPLEUI_HOME_INFO = False
 SIMPLEUI_ANALYSIS = False
 
 AUTH_USER_MODEL = 'core.User'
+
+LOGIN_URL = '/login/'

@@ -34,8 +34,11 @@
            <button class="tab-btn active" data-tab="personal">Personal Info</button>
            {% if user.user_type == 'parent' %}
            <button class="tab-btn" data-tab="children">My Children</button>
+           <button class="tab-btn" data-tab="reports">Reports</button>
            {% elif user.user_type == 'student' %}
            <button class="tab-btn" data-tab="performance">My Performance</button>
+           <button class="tab-btn" data-tab="assignments">Assignments</button>
+           <button class="tab-btn" data-tab="absence-excuses">Absence Excuses</button>
            {% endif %}
            <button class="tab-btn" data-tab="notifications">Notifications
                {% if unread_notifications_count > 0 %}
@@ -72,13 +75,12 @@
                            <label for="phone">Phone Number</label>
                            <input type="tel" id="phone" name="phone" value="{{ user.phone_number|default:'' }}">
                        </div>
-                       <!-- In the personal info form -->
-                       {% if user.user_type == 'parent' and user.parent_profile %}
+                       {% if user.user_type == 'parent' %}
                        <div class="form-group">
                            <label for="address">Address</label>
                            <input type="text" id="address" name="address" value="{{ user.parent_profile.address|default:'' }}">
                        </div>
-                       {% elif user.user_type == 'student' and user.student_profile %}
+                       {% elif user.user_type == 'student' %}
                        <div class="form-group">
                            <label for="dob">Date of Birth</label>
                            <input type="date" id="dob" name="dob" value="{{ user.student_profile.date_of_birth|date:'Y-m-d' }}">
@@ -116,17 +118,6 @@
            <!-- Children Tab (Parent only) -->
            {% if user.user_type == 'parent' %}
            <div class="tab-content" id="children-tab">
-               <!-- Debug output -->
-               <div class="debug-info" style="display: none;">
-                   <p>Number of children: {{ children|length }}</p>
-                   {% for student in children %}
-                   <p>Child: {{ student.first_name }} {{ student.last_name }}</p>
-                   <p>Absences: {{ student.absent_count }}</p>
-                   <p>Present: {{ student.present_count }}</p>
-                   <p>Performances: {{ student.academic_performances.count }}</p>
-                   {% endfor %}
-               </div>
-              
                <div class="children-list">
                    {% for student in children %}
                    <div class="child-card">
@@ -168,6 +159,43 @@
            {% endif %}
 
 
+           <!-- Reports Tab (Parent only) -->
+           {% if user.user_type == 'parent' %}
+           <div class="tab-content" id="reports-tab">
+               <div class="reports-section">
+                   {% for child in children %}
+                   <div class="child-reports">
+                       <h3>Reports for {{ child.first_name }} {{ child.last_name }}</h3>
+                       {% if child.reports.all %}
+                       <div class="reports-list">
+                           {% for report in child.reports.all %}
+                           <div class="report-card">
+                               <div class="report-header">
+                                   <h4>{{ report.get_report_type_display }} Report</h4>
+                                   <span class="date">{{ report.generated_at|date:"M d, Y" }}</span>
+                               </div>
+                               <div class="report-content">
+                                   {{ report.content|linebreaks }}
+                               </div>
+                               <div class="report-actions">
+                                   <a href="#" class="btn-secondary">Download PDF</a>
+                               </div>
+                           </div>
+                           {% endfor %}
+                       </div>
+                       {% else %}
+                       <div class="empty-state">
+                           <span class="material-symbols-outlined">description</span>
+                           <p>No reports available for {{ child.first_name }}</p>
+                       </div>
+                       {% endif %}
+                   </div>
+                   {% endfor %}
+               </div>
+           </div>
+           {% endif %}
+
+
            <!-- Performance Tab (Student only) -->
            {% if user.user_type == 'student' %}
            <div class="tab-content" id="performance-tab">
@@ -197,7 +225,6 @@
                        </div>
                    </div>
                    <div class="attendance-chart">
-                       <!-- Placeholder for attendance chart -->
                        <canvas id="attendanceChart"></canvas>
                    </div>
                </div>
@@ -236,6 +263,164 @@
                                {% endfor %}
                            </tbody>
                        </table>
+                   </div>
+               </div>
+           </div>
+           {% endif %}
+
+
+           <!-- Assignments Tab (Student only) -->
+           {% if user.user_type == 'student' %}
+           <div class="tab-content" id="assignments-tab">
+               <div class="assignments-section">
+                   <!-- Pending Assignments -->
+                   <div class="pending-assignments">
+                       <h3>Pending Assignments</h3>
+                       {% if pending_assignments %}
+                       <div class="assignments-list">
+                           {% for assignment in pending_assignments %}
+                           <div class="assignment-card pending">
+                               <div class="assignment-header">
+                                   <h4>{{ assignment.title }}</h4>
+                                   <span class="subject-badge">{{ assignment.subject.name }}</span>
+                               </div>
+                               <div class="assignment-details">
+                                   <p>{{ assignment.description }}</p>
+                                   <p><strong>Due:</strong> {{ assignment.due_date|date:"M d, Y H:i" }}</p>
+                                   <p><strong>Points:</strong> {{ assignment.max_points }}</p>
+                               </div>
+                               <div class="assignment-actions">
+                                   <button class="btn-primary open-submission-modal"
+                                           data-assignment-id="{{ assignment.id }}"
+                                           data-assignment-title="{{ assignment.title }}">
+                                       Submit Assignment
+                                   </button>
+                               </div>
+                           </div>
+                           {% endfor %}
+                       </div>
+                       {% else %}
+                       <div class="empty-state">
+                           <span class="material-symbols-outlined">assignment</span>
+                           <p>No pending assignments</p>
+                       </div>
+                       {% endif %}
+                   </div>
+
+
+                   <!-- Submitted Assignments -->
+                   <div class="submitted-assignments">
+                       <h3>Submitted Assignments</h3>
+                       {% if submitted_assignments %}
+                       <div class="assignments-list">
+                           {% for submission in submitted_assignments %}
+                           <div class="assignment-card submitted {% if submission.is_late %}late{% endif %}">
+                               <div class="assignment-header">
+                                   <h4>{{ submission.assignment.title }}</h4>
+                                   <span class="subject-badge">{{ submission.assignment.subject.name }}</span>
+                                   {% if submission.is_late %}
+                                   <span class="status-badge late">Late</span>
+                                   {% endif %}
+                                   {% if submission.grade is not None %}
+                                   <span class="grade-badge">Grade: {{ submission.grade }}/{{ submission.assignment.max_points }}</span>
+                                   {% else %}
+                                   <span class="status-badge pending">Pending</span>
+                                   {% endif %}
+                               </div>
+                               <div class="assignment-details">
+                                   <p><strong>Submitted:</strong> {{ submission.submitted_at|date:"M d, Y H:i" }}</p>
+                                   {% if submission.notes %}
+                                   <p><strong>Notes:</strong> {{ submission.notes }}</p>
+                                   {% endif %}
+                                   {% if submission.feedback %}
+                                   <div class="feedback">
+                                       <p><strong>Feedback:</strong> {{ submission.feedback }}</p>
+                                   </div>
+                                   {% endif %}
+                               </div>
+                               <div class="assignment-actions">
+                                   <a href="{{ submission.submission_file.url }}" class="btn-secondary" download>
+                                       Download Submission
+                                   </a>
+                               </div>
+                           </div>
+                           {% endfor %}
+                       </div>
+                       {% else %}
+                       <div class="empty-state">
+                           <span class="material-symbols-outlined">assignment_turned_in</span>
+                           <p>No submitted assignments yet</p>
+                       </div>
+                       {% endif %}
+                   </div>
+               </div>
+           </div>
+           {% endif %}
+
+
+           <!-- Absence Excuses Tab (Student only) -->
+           {% if user.user_type == 'student' %}
+           <div class="tab-content" id="absence-excuses-tab">
+               <div class="absence-excuses-section">
+                   <div class="submit-excuse-section">
+                       <h3>Submit New Absence Excuse</h3>
+                       <form method="post" enctype="multipart/form-data" id="absence-excuse-form" class="excuse-form">
+                           {% csrf_token %}
+                           <div class="form-group">
+                               <label for="excuse-date">Date of Absence</label>
+                               <input type="date" id="excuse-date" name="date" required>
+                           </div>
+                           <div class="form-group">
+                               <label for="excuse-reason">Reason</label>
+                               <textarea id="excuse-reason" name="reason" rows="3" required></textarea>
+                           </div>
+                           <div class="form-group">
+                               <label for="excuse-document">Supporting Document (Optional)</label>
+                               <input type="file" id="excuse-document" name="supporting_document" accept=".pdf,.jpg,.jpeg,.png">
+                               <small>PDF, JPG, or PNG files only</small>
+                           </div>
+                           <button type="submit" class="btn-primary">Submit Excuse</button>
+                       </form>
+                   </div>
+
+
+                   <div class="excuse-history">
+                       <h3>Submitted Excuses</h3>
+                       {% if absence_excuses %}
+                       <div class="excuses-list">
+                           {% for excuse in absence_excuses %}
+                           <div class="excuse-card {{ excuse.status }}">
+                               <div class="excuse-header">
+                                   <h4>Absence on {{ excuse.date|date:"M d, Y" }}</h4>
+                                   <span class="status-badge {{ excuse.status }}">
+                                       {{ excuse.get_status_display }}
+                                   </span>
+                               </div>
+                               <div class="excuse-details">
+                                   <p><strong>Reason:</strong> {{ excuse.reason }}</p>
+                                   <p><strong>Submitted:</strong> {{ excuse.submitted_at|date:"M d, Y H:i" }}</p>
+                                   {% if excuse.supporting_document %}
+                                   <p><strong>Document:</strong>
+                                       <a href="{{ excuse.supporting_document.url }}" download>
+                                           Download File
+                                       </a>
+                                   </p>
+                                   {% endif %}
+                                   {% if excuse.response_notes %}
+                                   <div class="response-notes">
+                                       <p><strong>Response:</strong> {{ excuse.response_notes }}</p>
+                                   </div>
+                                   {% endif %}
+                               </div>
+                           </div>
+                           {% endfor %}
+                       </div>
+                       {% else %}
+                       <div class="empty-state">
+                           <span class="material-symbols-outlined">event_available</span>
+                           <p>No absence excuses submitted yet</p>
+                       </div>
+                       {% endif %}
                    </div>
                </div>
            </div>
@@ -327,7 +512,7 @@
                            </button>
                        </div>
                        <div class="admin-table-container">
-                           <table class="admin-table" id="admin-students-table">
+                           <table class="admin-table">
                                <thead>
                                    <tr>
                                        <th>Name</th>
@@ -375,7 +560,7 @@
                            </button>
                        </div>
                        <div class="admin-table-container">
-                           <table class="admin-table" id="admin-parents-table">
+                           <table class="admin-table">
                                <thead>
                                    <tr>
                                        <th>Name</th>
@@ -417,7 +602,7 @@
                            </button>
                        </div>
                        <div class="admin-table-container">
-                           <table class="admin-table" id="admin-performance-table">
+                           <table class="admin-table">
                                <thead>
                                    <tr>
                                        <th>Student</th>
@@ -483,6 +668,31 @@
    </div>
 </div>
 {% endif %}
+
+
+<!-- Assignment Submission Modal -->
+<div id="assignment-submission-modal" class="modal">
+   <div class="modal-content">
+       <span class="close-modal">&times;</span>
+       <h3 id="submission-modal-title">Submit Assignment</h3>
+       <form id="assignment-submission-form" method="post" enctype="multipart/form-data">
+           {% csrf_token %}
+           <input type="hidden" id="assignment-id" name="assignment_id">
+           <div class="form-group">
+               <label for="submission-file">Submission File</label>
+               <input type="file" id="submission-file" name="submission_file" required accept=".pdf,.doc,.docx,.txt,.zip,.rar">
+               <small>PDF, DOC, TXT, or ZIP files only</small>
+           </div>
+           <div class="form-group">
+               <label for="submission-notes">Notes (Optional)</label>
+               <textarea id="submission-notes" name="notes" rows="3"></textarea>
+           </div>
+           <button type="submit" class="btn-primary">Submit</button>
+       </form>
+   </div>
+</div>
+
+
 {% endblock %}
 
 

@@ -3,11 +3,10 @@ from . import views
 
 
 urlpatterns = [
-   path('', views.home, name='home'),
    path('register/', views.register, name='register'),
    path('login/', views.user_login, name='login'),
    path('logout/', views.user_logout, name='logout'),
-   path('profile/', views.profile, name='profile'),
+   path('', views.profile, name='profile'),
   
    # Profile update endpoints
    path('profile/update/', views.update_profile, name='update_profile'),
@@ -24,4 +23,8 @@ urlpatterns = [
    path('manage/add-<str:item_type>/', views.add_admin_item, name='add_admin_item'),
    path('manage/update-<str:item_type>/<int:item_id>/', views.update_admin_item, name='update_admin_item'),
    path('manage/delete-<str:item_type>/<int:item_id>/', views.delete_admin_item, name='delete_admin_item'),
+  
+   # Add these URLs to urlpatterns
+   path('assignments/<int:assignment_id>/submit/', views.submit_assignment, name='submit_assignment'),
+   path('absence-excuses/submit/', views.submit_absence_excuse, name='submit_absence_excuse'),
 ]
