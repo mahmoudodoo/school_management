@@ -71,7 +71,7 @@ class AssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(AssignmentSubmission, site=custom_admin_site)
 class AssignmentSubmissionAdmin(admin.ModelAdmin):
-   list_display = ('student', 'assignment__title', 'submitted_at', 'is_late', 'grade')
+   list_display = ('student', 'assignment__title', 'submitted_at', 'is_late', 'grade','satus')
    search_fields = ('student__first_name', 'student__last_name', 'assignment__title')
    list_filter = ('student__first_name', 'assignment__title','submitted_at')
 

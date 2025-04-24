@@ -47,8 +47,6 @@ def user_logout(request):
 @login_required
 def profile(request):
     context = {}
-    
-    # Basic user context
     context['user'] = request.user
     
     # Parent-specific context
@@ -62,7 +60,8 @@ def profile(request):
                 Prefetch('attendances', queryset=Attendance.objects.order_by('-date')),
                 Prefetch('academic_performances', 
                         queryset=AcademicPerformance.objects.select_related('subject')
-                        .order_by('subject__name'))
+                        .order_by('subject__name')),
+                Prefetch('reports', queryset=Report.objects.order_by('-generated_at'))
             )
             
             for child in children:
@@ -140,6 +139,22 @@ def profile(request):
                 'is_excelling': [p.is_excelling() for p in performances]
             }
             
+            # Assignments data
+            assignments = Assignment.objects.filter(is_published=True)
+            submitted_assignments = student_profile.submitted_assignments.all() \
+                .select_related('assignment', 'assignment__subject') \
+                .order_by('-submitted_at')
+            
+            # Get assignments that haven't been submitted yet
+            submitted_assignment_ids = submitted_assignments.values_list('assignment_id', flat=True)
+            pending_assignments = assignments.exclude(id__in=submitted_assignment_ids)
+            
+            context['submitted_assignments'] = submitted_assignments
+            context['pending_assignments'] = pending_assignments
+            
+            # Absence excuses data
+            context['absence_excuses'] = student_profile.absence_excuses.all().order_by('-submitted_at')
+            
         except Student.DoesNotExist:
             messages.warning(request, "Student profile not found. Please contact admin.")
     
@@ -199,7 +214,6 @@ def profile(request):
         .order_by('-timestamp')[:5]
     
     return render(request, 'profile.html', context)
-
 
 @login_required
 def update_profile(request):
@@ -518,73 +532,3 @@ def submit_absence_excuse(request):
             return JsonResponse({'success': False, 'error': form.errors.get_json_data()})
     return JsonResponse({'success': False, 'error': 'Invalid request'})
 
-# Update the profile view to include the new context data
-@login_required
-def profile(request):
-    context = {}
-    context['user'] = request.user
-    
-    if request.user.user_type == 'parent':
-        try:
-            parent_profile = request.user.parent_profile
-            context['parent_profile'] = parent_profile
-            children = parent_profile.students.all().prefetch_related(
-                Prefetch('attendances', queryset=Attendance.objects.order_by('-date')),
-                Prefetch('academic_performances', 
-                        queryset=AcademicPerformance.objects.select_related('subject')
-                        .order_by('subject__name')),
-                Prefetch('reports', queryset=Report.objects.order_by('-generated_at'))
-            )
-            
-            for child in children:
-                child.absent_count = child.attendances.filter(status='Absent').count()
-                child.present_count = child.attendances.filter(status='Present').count()
-                child.performance_by_subject = {
-                    perf.subject.name: perf.grade 
-                    for perf in child.academic_performances.all()
-                }
-                
-            context['children'] = children
-            
-        except Parent.DoesNotExist:
-            messages.warning(request, "Parent profile not found. Please contact admin.")
-    
-    elif request.user.user_type == 'student':
-        try:
-            student_profile = request.user.student_profile
-            context['student_profile'] = student_profile
-            
-            # Attendance data
-            attendances = student_profile.attendances.all().order_by('date')
-            context['attendances'] = attendances
-            context['present_count'] = present_count = attendances.filter(status='Present').count()
-            context['absent_count'] = absent_count = attendances.filter(status='Absent').count()
-            
-            # Performance data
-            performances = student_profile.academic_performances.all() \
-                .select_related('subject') \
-                .order_by('subject__name')
-            context['performances'] = performances
-            
-            # Assignments data
-            assignments = Assignment.objects.filter(is_published=True)
-            submitted_assignments = student_profile.submitted_assignments.all() \
-                .select_related('assignment', 'assignment__subject') \
-                .order_by('-submitted_at')
-            
-            # Get assignments that haven't been submitted yet
-            submitted_assignment_ids = submitted_assignments.values_list('assignment_id', flat=True)
-            pending_assignments = assignments.exclude(id__in=submitted_assignment_ids)
-            
-            context['submitted_assignments'] = submitted_assignments
-            context['pending_assignments'] = pending_assignments
-            
-            # Absence excuses data
-            context['absence_excuses'] = student_profile.absence_excuses.all().order_by('-submitted_at')
-            
-        except Student.DoesNotExist:
-            messages.warning(request, "Student profile not found. Please contact admin.")
-    
-    # Rest of your existing profile view code...
-    
-    return render(request, 'profile.html', context)
